@@ -1,29 +1,37 @@
-import { createPublicClient, http, parseAbi, createWalletClient, defineChain } from 'viem'
-import { mainnet } from 'viem/chains'
+import { createPublicClient, http, parseAbi, createWalletClient } from 'viem'
+import type { Chain, Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as dotenv from 'dotenv'
+import * as R from 'ramda'
+import pino from 'pino'
+import pretty from 'pino-pretty'
+import arg from 'arg'
+
+import { tanssiDancebox } from './feeder/chains'
+import { sources, relays } from './feeder/config'
 
 dotenv.config()
 
-const mainnetFeedContracts = {
-  'AAVE-USD': '0x547a514d5e3769680Ce22B2361c10Ea13619e8a9',
-  'CRV-USD': '0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f',
-  'ETH-USD': '0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419',
-  'BTC-USD': '0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c',
-  'DAI-USD': '0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9',
-  'USDT-USD': '0x3E7d1eAB13ad0104d2750B8863b489D65364e32D',
-  'USDC-USD': '0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6',
+const args = arg({})
+
+const logger = pino(pretty())
+
+//
+//
+//
+
+type ContractAddresses = Readonly<Record<string, Hex>>
+
+interface RoundData {
+  pair: string
+  roundId: bigint
+  answer: bigint
+  startedAt: bigint
+  updatedAt: bigint
+  answeredInRound: bigint
 }
 
-const aggregatorContracts = {
-  'AAVE-USD': '0x2E1640853bB2dD9f47831582665477865F9240DB',
-  'CRV-USD': '0xf38b25b79A72393Fca2Af88cf948D98c64726273',
-  'ETH-USD': '0x739d71fC66397a28B3A3b7d40eeB865CA05f0185',
-  'BTC-USD': '0x89BC5048d634859aef743fF2152363c0e83a6a49',
-  'DAI-USD': '0x1f56d8c7D72CE2210Ef340E00119CDac2b05449B',
-  'USDT-USD': '0x5018c16707500D2C89a0446C08f347A024f55AE3',
-  'USDC-USD': '0x4b8331Ce5Ae6cd33bE669c10Ded9AeBA774Bf252',
-}
+const roundDataKeys = ['pair', 'roundId', 'answer', 'startedAt', 'updatedAt', 'answeredInRound']
 
 const abi = parseAbi([
   'function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)',
@@ -31,98 +39,129 @@ const abi = parseAbi([
   'function getRoundData(uint80 _roundId) public view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)',
 ])
 
-// tanssi dancebox
-const chain = defineChain({
-  id: 5678,
-  name: 'dancebox-evm-container',
-  rpcUrls: {
-    default: {
-      http: ['https://fraa-dancebox-3001-rpc.a.dancebox.tanssi.network'],
-    },
-    public: {
-      http: ['https://fraa-dancebox-3001-rpc.a.dancebox.tanssi.network'],
-    }
-  }
-})
-
-const publicClient = createPublicClient({
-  chain: mainnet,
-  transport: http()
-})
-
-const targetChainPublicClient = createPublicClient({
-  chain,
-  transport: http()
-})
-
-async function getLatestRoundData(pair: string) {
-  const address = mainnetFeedContracts[pair]
-  if (!address) {
-    throw new Error(`${pair} mainnet feed contract did not exist.`)
-  }
-  const data = await publicClient.readContract({
-    address,
-    abi,
-    functionName: 'latestRoundData',
-  })
-  return data
-}
-
-async function getRoundDataFromAggregator(pair: string, roundId: number) {
-  const address = aggregatorContracts[pair]
-  if (!address) {
-    throw new Error(`${pair} aggregator contract did not exist.`)
-  }
-  const publicClient = createPublicClient({
+async function bulkReadLastRoundDataFromSource(chain: Chain, contracts: ContractAddresses): Promise<Record<string, RoundData>> {
+  const pairs = R.toPairs(contracts)
+  const client = createPublicClient({
     chain,
     transport: http()
   })
-  try {
-    const data = await publicClient.readContract({
-      address,
-      abi,
-      functionName: 'getRoundData',
-      args: [roundId]
-    })
-    return data
-  } catch {}
-}
-
-async function updateFeed(walletClient: ReturnType<createWalletClient>, pair: string) {
-  if (!aggregatorContracts[pair]) {
-    throw new Error(`${pair} aggregator contract did not exist.`)
-  }
-  const [roundId, answer, startedAt, updatedAt, answeredInRound] = await getLatestRoundData(pair)
-  const aggregatorRoundId = Number(roundId & BigInt('0xFFFFFFFFFFFFFFFF'))
-  const data = await getRoundDataFromAggregator(pair, aggregatorRoundId)
-  if (data[1] === answer) {
-    console.info(`${pair} aggregatorRoundId ${aggregatorRoundId} data exists: ${data}`)
-    return
-  }
-
-  const hash = await walletClient.writeContract({
-    address: aggregatorContracts[pair],
-    abi,
-    functionName: 'transmit',
-    args: [roundId, answer, startedAt]
+  const result = await client.multicall({
+    contracts: R.map(
+      ([, address]) => ({
+        address,
+        abi,
+        functionName: 'latestRoundData',
+      }),
+      pairs
+    )
   })
-  await targetChainPublicClient.waitForTransactionReceipt({ hash })
-  console.info(`${pair} updated, transmit tx hash: ${hash}`)
+  const newPairs = R.map(
+    ([pair, result]) => {
+      const numbers = result.result!.map(BigInt)
+      numbers[0] = BigInt(numbers[0] & BigInt('0xFFFFFFFFFFFFFFFF')) // Transform roundId
+      return [pair[0], R.zipObj(roundDataKeys, [pair[0], ...numbers])]
+    },
+    R.zip(pairs, result)
+  ) as [string, RoundData][]
+  return R.fromPairs(newPairs)
 }
+
+async function bulkReadGetRoundDataFromDestination(chain: Chain, pairs: Readonly<[string, `0x${string}`, bigint]>[]): Promise<Record<string, RoundData>> {
+  const client = createPublicClient({
+    chain,
+    transport: http()
+  })
+  const result = await client.multicall({
+    contracts: R.map(
+      ([_pair, address, roundId]) => ({
+        address,
+        abi,
+        functionName: 'getRoundData',
+        args: [roundId],
+      }),
+      pairs
+    )
+  })
+  const newPairs = R.map(
+    ([pair, result]) => {
+      const numbers = result.result!.map(BigInt)
+      numbers[0] = BigInt(numbers[0] & BigInt('0xFFFFFFFFFFFFFFFF')) // Transform roundId
+      return [pair[0], R.zipObj(roundDataKeys, [pair[0], ...numbers])]
+    },
+    R.zip(pairs, result)
+  ) as [string, RoundData][]
+  return R.fromPairs(newPairs)
+}
+
+//
+//
+//
 
 async function main() {
   if (!process.env.PRIVATE_KEY) {
     throw new Error('missing process.env.PRIVATE_KEY')
   }
-  const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`)
-  const walletClient = createWalletClient({
-    chain,
-    transport: http(),
-    account,
-  })
-  for (const pair in aggregatorContracts) {
-    await updateFeed(walletClient, pair)
+  if (!args._.length) {
+    throw new Error(`Usage: ${process.argv[1]} <relayer>`)
   }
+  const relayer = args._[0]
+  const relay = relays[relayer]
+  const totalPairs = R.sum(R.map(i => i.pairs.length, relay.sources))
+  const start = Date.now()
+
+  logger.info(`Run relay aggregator ${relayer}, chain ${relay.chain.name}, from ${relay.sources.length} sources and ${totalPairs} pairs.`)
+
+  //
+  // Getting last round data from sources and last synced round data from relayed chain.
+  //
+  let lastRoundData: Record<string, RoundData> = {}
+  let lastRelayedRoundData: Record<string, RoundData> = {}
+  for (const source of relay.sources) {
+    if (source.source !== 'etherum') {
+      throw new Error(`Unsupported source: ${source.source}`)
+    }
+    const { chain, contracts } = sources[source.source]
+    const result1 = await bulkReadLastRoundDataFromSource(chain, contracts)
+    lastRoundData = R.mergeLeft(lastRoundData, result1)
+
+    const queries = R.map(
+      pair => [pair, relay.contracts[pair], lastRoundData[pair].roundId] as const,
+      source.pairs
+    )
+    const result2 = await bulkReadGetRoundDataFromDestination(relay.chain, queries)
+    lastRelayedRoundData = R.mergeLeft(lastRelayedRoundData, result2)
+  }
+
+  //
+  // Check roundId and found out which one need to be update. 
+  //
+  let toUpdate: RoundData[] = []
+  for (const pair of R.keys(relay.contracts)) {
+    const lastRound = lastRoundData[pair]
+    const lastRelayedRound = lastRelayedRoundData[pair]
+    logger.info(`${pair} ${lastRound.roundId} <> ${lastRelayedRound.roundId} | ${lastRound.answer}`)
+    if (lastRound.roundId > lastRelayedRound.roundId || lastRound.answer !== lastRelayedRound.answer) {
+      toUpdate.push(lastRound)
+    }
+  }
+
+  logger.info(`Found ${toUpdate.length} pairs need to be updated.`)
+  if (toUpdate.length > 0) {
+    const account = privateKeyToAccount(process.env.PRIVATE_KEY as Hex)
+    const publicClient = createPublicClient({ chain: relay.chain, transport: http() })
+    const walletClient = createWalletClient({ chain: relay.chain, transport: http(), account })
+
+    const hashes: Hex[] = await Promise.all(toUpdate.map(
+      i => walletClient.writeContract({
+        address: relay.contracts[i.pair],
+        abi,
+        functionName: 'transmit',
+        args: [i.roundId, i.answer, i.startedAt]
+      })
+    ))
+    await Promise.all(hashes.map(hash => publicClient.waitForTransactionReceipt({ hash })))
+  }
+  logger.info(`Elapsed: ${Date.now() - start}ms`)
 }
 
 main().then(() => process.exit(0)).catch((err) => {
