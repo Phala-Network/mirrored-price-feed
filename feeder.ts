@@ -151,14 +151,20 @@ async function main() {
     const publicClient = createPublicClient({ chain: relay.chain, transport: http() })
     const walletClient = createWalletClient({ chain: relay.chain, transport: http(), account })
 
-    const hashes: Hex[] = await Promise.all(toUpdate.map(
-      i => walletClient.writeContract({
-        address: relay.contracts[i.pair],
-        abi,
-        functionName: 'transmit',
-        args: [i.roundId, i.answer, i.startedAt]
-      })
-    ))
+    const hashes: Hex[] = []
+    for (const i of toUpdate) {
+      try {
+        const hash = await walletClient.writeContract({
+          address: relay.contracts[i.pair],
+          abi,
+          functionName: 'transmit',
+          args: [i.roundId, i.answer, i.startedAt]
+        })
+        hashes.push(hash)
+      } catch (err) {
+        logger.error(`Send contract transaction failed: ${relay.contracts[i.pair]} ${i.pair}`)
+      }
+    }
     await Promise.all(hashes.map(hash => publicClient.waitForTransactionReceipt({ hash })))
   }
   logger.info(`Elapsed: ${Date.now() - start}ms`)
