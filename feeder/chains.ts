@@ -31,3 +31,60 @@ export const tanssiDancebox: Chain = defineChain({
   },
   testnet: true,
 })
+
+export const mapRelayChain: Chain = defineChain({
+  id: 22776,
+  name: 'MAP Relay Chain',
+  network: 'mapo',
+  nativeCurrency: {
+    name: 'MAPO',
+    symbol: 'MAPO',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://rpc.maplabs.io'],
+    },
+    public: {
+      http: ['https://rpc.maplabs.io'],
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: 'MAPO SCAN',
+      url: 'https://maposcan.io/',
+    }
+  },
+})
+
+export const mapoMakalu: Chain = defineChain({
+  id: 212,
+  name: 'MAP Makalu Testnet',
+  network: 'mapo',
+  nativeCurrency: {
+    name: 'MAPO',
+    symbol: 'MAPO',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://testnet-rpc.maplabs.io'],
+    },
+    public: {
+      http: ['https://testnet-rpc.maplabs.io'],
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: 'MAPO SCAN',
+      url: 'https://testnet.maposcan.io/',
+    }
+  },
+  contracts: {
+    multicall3: {
+      address: '0x49899fBd9be6b23d5e4AF697a92dc1E6C695862b',
+      blockCreated: 8761684,
+    }
+  },
+  testnet: true,
+})

@@ -1,6 +1,6 @@
 import type { Chain, Hex } from 'viem'
 import { mainnet, baseSepolia, astarZkatana, astarZkyoto } from 'viem/chains'
-import { tanssiDancebox } from './chains'
+import { tanssiDancebox, mapoMakalu } from './chains'
 
 export interface Source {
   chain: Chain
@@ -108,5 +108,21 @@ export const relays: Readonly<Record<string, Relay>> = {
       'ETH-USD': '0x739d71fC66397a28B3A3b7d40eeB865CA05f0185',
       'CRV-USD': '0x49899fBd9be6b23d5e4AF697a92dc1E6C695862b',
     },
+  },
+
+  mapoMakalu: {
+    chain: mapoMakalu,
+    sources: [
+      {
+        source: 'etherum',
+        pairs: ['ETH-USD', 'BTC-USD', 'USDT-USD', 'USDC-USD'],
+      },
+    ],
+    contracts: {
+      'BTC-USD': '0x92E9b9348949455580EB820ba041f4cAaB998e3f',
+      'ETH-USD': '0xB842f535a88021F95e1a94245Fa549a7f75084Dc',
+      'USDC-USD': '0x1e73C20c42a7de166868da4c47963d137030492A',
+      'USDT-USD': '0x2E1640853bB2dD9f47831582665477865F9240DB',
+    }
   },
 }
