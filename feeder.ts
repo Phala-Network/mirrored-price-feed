@@ -7,7 +7,6 @@ import pino from 'pino'
 import pretty from 'pino-pretty'
 import arg from 'arg'
 
-import { tanssiDancebox } from './feeder/chains'
 import { sources, relays } from './feeder/config'
 
 dotenv.config()
