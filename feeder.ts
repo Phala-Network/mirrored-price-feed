@@ -139,7 +139,7 @@ async function main() {
   for (const pair of R.keys(relay.contracts)) {
     const lastRound = lastRoundData[pair]
     const lastRelayedRound = lastRelayedRoundData[pair]
-    logger.info(`${pair} ${lastRound.roundId} <> ${lastRelayedRound.roundId} | ${lastRound.answer}`)
+    logger.info(`${pair} | ${lastRound.roundId} | ${lastRound.answer} => ${lastRelayedRoundData.answer}`)
     if (lastRound.roundId > lastRelayedRound.roundId || lastRound.answer !== lastRelayedRound.answer) {
       toUpdate.push(lastRound)
     }
