@@ -1,10 +1,10 @@
 import type { Chain, Hex } from 'viem'
-import { mainnet, baseSepolia, astarZkatana, astarZkyoto } from 'viem/chains'
+import { mainnet, bsc, baseSepolia, astarZkatana, astarZkyoto } from 'viem/chains'
 import { tanssiDancebox, mapoMakalu } from './chains'
 
 export interface Source {
   chain: Chain
-  provider: string
+  provider: 'chainlink'
   contracts: Record<string, Hex>
 }
 
@@ -30,7 +30,20 @@ export const sources: Readonly<Record<string, Source>> = {
       'USDT-USD': '0x3E7d1eAB13ad0104d2750B8863b489D65364e32D',
       'USDC-USD': '0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6',
     }
-  }
+  },
+  binance: {
+    chain: bsc,
+    provider: 'chainlink',
+    contracts: {
+      'AAVE-USD': '0xA8357BF572460fC40f4B0aCacbB2a6A61c89f475',
+      'CRV-USD': '0x2e1C3b6Fcae47b20Dd343D9354F7B1140a1E6B27',
+      'ETH-USD': '0x9ef1B8c0E4F7dc8bF5719Ea496883DC6401d5b2e',
+      'BTC-USD': '0x264990fbd0A4796A3E3d8E37C4d5F87a3aCa5Ebf',
+      'DAI-USD': '0x132d3C0B1D2cEa0BC552588063bdBb210FDeecfA',
+      'USDT-USD': '0xB97Ad0E74fa7d920791E90258A6E2085088b4320',
+      'USDC-USD': '0x51597f405303C4377E36123cBc172b13269EA163',
+    },
+  },
 }
 
 export const relays: Readonly<Record<string, Relay>> = {
@@ -114,7 +127,7 @@ export const relays: Readonly<Record<string, Relay>> = {
     chain: mapoMakalu,
     sources: [
       {
-        source: 'etherum',
+        source: 'binance',
         pairs: ['ETH-USD', 'BTC-USD', 'USDT-USD', 'USDC-USD'],
       },
     ],
