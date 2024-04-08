@@ -4,6 +4,7 @@ import { tanssiDancebox, mapoMakalu } from './chains'
 
 export interface Source {
   chain: Chain
+  rpc?: string
   provider: 'chainlink'
   contracts: Record<string, Hex>
 }
@@ -20,6 +21,7 @@ export interface Relay {
 export const sources: Readonly<Record<string, Source>> = {
   etherum: {
     chain: mainnet,
+    rpc: process.env.ETHERUM_MAINNET_RPC,
     provider: 'chainlink',
     contracts: {
       'AAVE-USD': '0x547a514d5e3769680Ce22B2361c10Ea13619e8a9',

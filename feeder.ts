@@ -38,11 +38,11 @@ const abi = parseAbi([
   'function getRoundData(uint80 _roundId) public view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)',
 ])
 
-async function bulkReadLastRoundDataFromSource(chain: Chain, contracts: ContractAddresses): Promise<Record<string, RoundData>> {
+async function bulkReadLastRoundDataFromSource(chain: Chain, rpc: string | undefined, contracts: ContractAddresses): Promise<Record<string, RoundData>> {
   const pairs = R.toPairs(contracts)
   const client = createPublicClient({
     chain,
-    transport: http()
+    transport: http(rpc)
   })
   const result = await client.multicall({
     contracts: R.map(
@@ -119,8 +119,8 @@ async function main() {
     if (source.source !== 'etherum') {
       throw new Error(`Unsupported source: ${source.source}`)
     }
-    const { chain, contracts } = sources[source.source]
-    const result1 = await bulkReadLastRoundDataFromSource(chain, contracts)
+    const { chain, rpc, contracts } = sources[source.source]
+    const result1 = await bulkReadLastRoundDataFromSource(chain, rpc, contracts)
     lastRoundData = R.mergeLeft(lastRoundData, result1)
 
     const queries = R.map(
