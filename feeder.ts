@@ -116,9 +116,6 @@ async function main() {
   let lastRoundData: Record<string, RoundData> = {}
   let lastRelayedRoundData: Record<string, RoundData> = {}
   for (const source of relay.sources) {
-    if (source.source !== 'etherum') {
-      throw new Error(`Unsupported source: ${source.source}`)
-    }
     const { chain, rpc, contracts } = sources[source.source]
     const result1 = await bulkReadLastRoundDataFromSource(chain, rpc, contracts)
     lastRoundData = R.mergeLeft(lastRoundData, result1)
