@@ -161,7 +161,7 @@ async function main() {
         logger.error(`Send contract transaction failed: ${relay.contracts[i.pair]} ${i.pair}`)
       }
     }
-    await Promise.all(hashes.map(hash => publicClient.waitForTransactionReceipt({ hash })))
+    await Promise.all(hashes.map(hash => publicClient.waitForTransactionReceipt({ hash, timeout: 60_000 })))
   }
   logger.info(`Elapsed: ${Date.now() - start}ms`)
 }
